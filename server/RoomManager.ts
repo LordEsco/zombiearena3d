@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 interface Player {
   id: string;
   socketId: string;
+  username: string;
   x: number;
   y: number;
   z: number;
@@ -56,10 +57,11 @@ class Room {
     };
   }
 
-  addPlayer(socket: Socket) {
+  addPlayer(socket: Socket, username: string) {
     this.players[socket.id] = {
       id: socket.id,
       socketId: socket.id,
+      username: username || `Player ${socket.id.substring(0, 4)}`,
       x: 0,
       y: 1,
       z: 0,
@@ -283,19 +285,19 @@ export class RoomManager {
   }
 
   handleConnection(socket: Socket) {
-    socket.on("create_room", () => {
+    socket.on("create_room", (username: string) => {
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const room = new Room(roomId, this.io, socket.id);
       this.rooms[roomId] = room;
-      room.addPlayer(socket);
+      room.addPlayer(socket, username);
       socket.emit("room_created", roomId);
     });
 
-    socket.on("join_room", (roomId: string) => {
-      const room = this.rooms[roomId];
+    socket.on("join_room", (data: { roomId: string, username: string }) => {
+      const room = this.rooms[data.roomId];
       if (room) {
-        room.addPlayer(socket);
-        socket.emit("room_joined", roomId);
+        room.addPlayer(socket, data.username);
+        socket.emit("room_joined", data.roomId);
       } else {
         socket.emit("error", "Room not found");
       }
