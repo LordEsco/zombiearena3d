@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 
 export class GameEngine {
   container: HTMLElement;
@@ -12,7 +14,7 @@ export class GameEngine {
   renderer: THREE.WebGLRenderer;
   controls: PointerLockControls;
   
-  players: Record<string, THREE.Mesh> = {};
+  players: Record<string, THREE.Group> = {};
   zombies: Record<string, THREE.Mesh> = {};
   bullets: THREE.Mesh[] = [];
   
@@ -31,6 +33,8 @@ export class GameEngine {
   ammo = 30;
   lastShotTime = 0;
   lastNetworkUpdate = 0;
+
+  font: any = null;
   
   constructor(container: HTMLElement, socket: Socket, setHudState: any) {
     this.container = container;
@@ -49,6 +53,12 @@ export class GameEngine {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
     container.appendChild(this.renderer.domElement);
+
+    // Load Font
+    const loader = new FontLoader();
+    loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+        this.font = font;
+    });
     
     // Lighting
     const ambientLight = new THREE.AmbientLight(0x404040);
@@ -200,18 +210,40 @@ export class GameEngine {
           
           const pData = data.players[id];
           if (!this.players[id]) {
-              // Create new player mesh
+              // Create new player group
+              const group = new THREE.Group();
+              
               const geo = new THREE.BoxGeometry(1, 1.8, 1);
               const mat = new THREE.MeshStandardMaterial({ color: 0x0000ff });
               const mesh = new THREE.Mesh(geo, mat);
               mesh.castShadow = true;
-              this.scene.add(mesh);
-              this.players[id] = mesh;
+              group.add(mesh);
+              
+              // Username label
+              if (this.font && pData.username) {
+                  const textGeo = new TextGeometry(pData.username, {
+                      font: this.font,
+                      size: 0.3,
+                      height: 0.05,
+                  });
+                  const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                  const textMesh = new THREE.Mesh(textGeo, textMat);
+                  textMesh.position.set(-0.5, 2.2, 0);
+                  group.add(textMesh);
+              }
+
+              this.scene.add(group);
+              this.players[id] = group;
           }
           
           // Interpolate position (simple lerp for now)
           this.players[id].position.lerp(new THREE.Vector3(pData.x, pData.y, pData.z), 0.3);
           this.players[id].rotation.y = pData.rotation;
+          
+          // Make text look at camera
+          if (this.players[id].children[1]) {
+              this.players[id].children[1].lookAt(this.camera.position);
+          }
           
           if (pData.isDead) {
               this.players[id].visible = false;
