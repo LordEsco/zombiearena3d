@@ -73,7 +73,9 @@ export class GameEngine {
     this.createEnvironment();
     
     // Controls
-    this.controls = new PointerLockControls(this.camera, document.body);
+    // Use renderer.domElement for better event handling
+    this.controls = new PointerLockControls(this.camera, this.renderer.domElement);
+    this.scene.add(this.controls.getObject());
     
     this.clock = new THREE.Clock();
     
@@ -89,7 +91,7 @@ export class GameEngine {
     document.addEventListener('mousedown', this.onMouseDown);
     
     // Lock pointer on click
-    container.addEventListener('click', () => {
+    this.renderer.domElement.addEventListener('click', () => {
         this.controls.lock();
     });
 
@@ -306,6 +308,9 @@ export class GameEngine {
   onMouseDown(event: MouseEvent) {
       if (this.controls.isLocked) {
           this.shoot();
+      } else {
+          // Ensure we lock if clicked and not locked (backup)
+          this.controls.lock();
       }
   }
   
@@ -362,7 +367,8 @@ export class GameEngine {
   animate() {
       this.animationId = requestAnimationFrame(() => this.animate());
       
-      const delta = this.clock.getDelta();
+      // Cap delta to prevent huge jumps if tab was inactive
+      const delta = Math.min(this.clock.getDelta(), 0.1);
       
       if (this.controls.isLocked) {
           // Movement Logic
@@ -388,8 +394,8 @@ export class GameEngine {
               this.canJump = true;
           }
           
-          // Recoil recovery
-          this.camera.rotation.x = THREE.MathUtils.lerp(this.camera.rotation.x, 0, 0.1);
+          // Recoil recovery - REMOVED because it forces camera pitch to 0, breaking mouse look
+          // this.camera.rotation.x = THREE.MathUtils.lerp(this.camera.rotation.x, 0, 0.1);
 
           // Send position to server (Throttled)
           const now = Date.now();
